@@ -1,0 +1,44 @@
+name: Fast gate
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fast-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-gate:
+    name: Fast gate
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # This package requires Python >=3.12, so the gate uses 3.12 rather than 3.9.
+    # ubuntu-24.04 is pinned because ubuntu-latest is 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install -e ".[dev]"
+      - name: Ruff
+        run: .venv/bin/ruff check .
+      - name: Pytest
+        run: .venv/bin/pytest

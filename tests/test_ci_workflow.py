@@ -103,6 +103,30 @@ def test_ci_runs_dependency_audit_before_tests_and_build() -> None:
     assert audit_index < build_index
 
 
+def test_fast_gate_job_is_named_for_required_checks() -> None:
+    path = Path(".github/workflows/fast-gate.yml")
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    assert isinstance(payload, dict)
+    workflow = cast(dict[str, object], payload)
+    assert workflow["name"] == "Fast gate"
+    jobs = cast(dict[str, object], workflow["jobs"])
+    assert list(jobs) == ["fast-gate"]
+    job = cast(dict[str, object], jobs["fast-gate"])
+    assert job["name"] == "Fast gate"
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert "github.event.pull_request.draft == false" in str(job["if"])
+
+    text = path.read_text(encoding="utf-8")
+    assert "types: [opened, synchronize, reopened, ready_for_review]" in text
+    assert 'branches: ["main"]' in text
+    assert "cancel-in-progress: true" in text
+    assert 'python-version: "3.12"' in text
+    assert "ruff check ." in text
+    assert "pytest" in text
+    assert text.index("actions/checkout@v6") < text.index("actions/setup-python@v6")
+
+
 def test_ci_builds_python_distributions_before_docker_image() -> None:
     workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
 
